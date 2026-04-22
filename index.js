@@ -74,6 +74,9 @@ app.post('/webhook', async (req, res) => {
 });
 
 async function handleMessage(event) {
+  console.log('[DEBUG] source:', JSON.stringify(event.source));
+  console.log('[DEBUG] text:', event.message.text);
+
   const userId = event.source.userId;
   const groupId = event.source.groupId || event.source.roomId;
   const text = event.message.text.trim();
