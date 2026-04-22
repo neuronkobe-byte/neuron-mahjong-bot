@@ -14,7 +14,8 @@ const ALL_QUESTIONS = questionData.questions;
 
 const userState = {};
 
-cron.schedule('0 9 * * *', () => { sendDailyQuestion(); }, { timezone: 'Asia/Tokyo' });
+// 月〜土 朝8時に配信
+cron.schedule('0 8 * * 1-6', () => { sendDailyQuestion(); }, { timezone: 'Asia/Tokyo' });
 
 async function sendDailyQuestion() {}
 
@@ -49,12 +50,15 @@ async function handleMessage(event) {
   const replyToken = event.replyToken;
   const stateKey = groupId ? `group_${groupId}` : userId;
 
-  console.log('[MSG] text:', text, 'userId:', userId);
-
   if (text === '問題' || text === '今すぐ問題') {
     const q = ALL_QUESTIONS[Math.floor(Math.random() * ALL_QUESTIONS.length)];
     userState[stateKey] = { pendingQuestionId: q.id };
     await reply(replyToken, buildQuestionMessage(q));
+    return;
+  }
+
+  if (text === 'ヘルプ' || text === 'help') {
+    await reply(replyToken, { type: 'text', text: '📖 使い方\n\n「問題」→ 今すぐ1問\n「1〜4」→ 回答\n\n毎週月〜土 朝8時に問題が届きます！' });
     return;
   }
 
@@ -75,7 +79,7 @@ async function handleMessage(event) {
     return;
   }
 
-  await reply(replyToken, { type: 'text', text: '「問題」と送ると出題します！' });
+  await reply(replyToken, { type: 'text', text: '「問題」と送ると出題します！\n「ヘルプ」で使い方を確認できます。' });
 }
 
 async function reply(replyToken, message) {
