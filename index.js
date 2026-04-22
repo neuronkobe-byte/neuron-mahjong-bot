@@ -21,9 +21,7 @@ async function sendDailyQuestion() {}
 function buildQuestionMessage(q) {
   const levels = { 1: '🟢初級', 2: '🟡中級', 3: '🔴上級' };
   let text = `${levels[q.level] || '🟢初級'} 【牌効率問題】\n━━━━━━━━━━━━\n❓ ${q.instruction}\n`;
-  if (q.hand && q.hand.length > 0) {
-    text += `\n手牌：${q.hand.join(' ')}\n`;
-  }
+  if (q.hand && q.hand.length > 0) text += `\n手牌：${q.hand.join(' ')}\n`;
   text += '\n';
   q.options.forEach((opt, i) => { text += `${i+1}. ${opt}\n`; });
   text += `\n━━━━━━━━━━━━\n1〜4の番号で答えてね！`;
@@ -35,9 +33,8 @@ app.post('/webhook', (req, res) => {
   try {
     const events = req.body.events || [];
     for (const event of events) {
-      console.log('[EVENT]', JSON.stringify(event.type), JSON.stringify(event.source));
       if (event.type === 'message' && event.message.type === 'text') {
-        handleMessage(event).catch(e => console.error('[ERR handleMessage]', e.message));
+        handleMessage(event).catch(e => console.error('[ERR]', e.response?.data || e.message));
       }
     }
   } catch(e) {
@@ -49,16 +46,15 @@ async function handleMessage(event) {
   const userId = event.source.userId;
   const groupId = event.source.groupId || event.source.roomId;
   const text = event.message.text.trim();
-  const replyTo = groupId || userId;
+  const replyToken = event.replyToken;
   const stateKey = groupId ? `group_${groupId}` : userId;
 
-  console.log('[MSG] replyTo:', replyTo, 'text:', text);
+  console.log('[MSG] text:', text, 'userId:', userId);
 
   if (text === '問題' || text === '今すぐ問題') {
     const q = ALL_QUESTIONS[Math.floor(Math.random() * ALL_QUESTIONS.length)];
     userState[stateKey] = { pendingQuestionId: q.id };
-    const msg = buildQuestionMessage(q);
-    await push(replyTo, msg);
+    await reply(replyToken, buildQuestionMessage(q));
     return;
   }
 
@@ -66,7 +62,7 @@ async function handleMessage(event) {
   if (answer >= 1 && answer <= 4) {
     const state = userState[stateKey];
     if (!state || !state.pendingQuestionId) {
-      await pushText(replyTo, '「問題」と送ると出題します！');
+      await reply(replyToken, { type: 'text', text: '「問題」と送ると出題します！' });
       return;
     }
     const q = ALL_QUESTIONS.find(x => x.id === state.pendingQuestionId);
@@ -75,22 +71,18 @@ async function handleMessage(event) {
     delete userState[stateKey].pendingQuestionId;
     let msg = isCorrect ? '✅ 正解！\n\n' : `❌ 不正解\n正解：${q.options[q.correct]}\n\n`;
     msg += `📝 ${q.explanation}`;
-    await pushText(replyTo, msg);
+    await reply(replyToken, { type: 'text', text: msg });
     return;
   }
 
-  await pushText(replyTo, '「問題」と送ると出題します！');
+  await reply(replyToken, { type: 'text', text: '「問題」と送ると出題します！' });
 }
 
-async function push(to, message) {
-  await axios.post('https://api.line.me/v2/bot/message/pushMessage',
-    { to, messages: [message] },
+async function reply(replyToken, message) {
+  await axios.post('https://api.line.me/v2/bot/message/reply',
+    { replyToken, messages: [message] },
     { headers: { Authorization: `Bearer ${LINE_TOKEN}` } }
   );
-}
-
-async function pushText(to, text) {
-  await push(to, { type: 'text', text });
 }
 
 app.get('/', (req, res) => {
